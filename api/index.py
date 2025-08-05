@@ -124,9 +124,13 @@ async def task():
         result = await asyncio.gather(*tasks)
         return result
 
-@app.get('/api')
-async def api():
-    #start = time()
-    output = await task()
-    #print("time: ", time() - start)
-    return output
+@app.route('/api', methods=['GET', 'POST'])
+def your_api_func():
+    try:
+        # основной код
+        ...
+        return jsonify({"status": "ok"})  # пример
+    except Exception as e:
+        print("Exception occurred:", e)
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
