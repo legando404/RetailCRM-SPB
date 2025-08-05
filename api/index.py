@@ -93,14 +93,14 @@ async def post_order(client, first_name, last_name, email, subject, text, html, 
 async def get_mail(username, password, imap_server):
     array = []
     print('connecting to imap server...')
-    with MailBox(imap_server).login(username, password, initial_folder='INBOX') as mailbox:
+    with MailBox(imap_server).login(username, password, initial_folder='Novers СПБ') as mailbox:
         print('fetching...')
-        exists = mailbox.folder.exists('INBOX|CRM')
+        exists = mailbox.folder.exists('Novers СПБ')
         if not exists:
-            mailbox.folder.create('INBOX|CRM')
+            mailbox.folder.create('Novers СПБ')
        
         for msg in mailbox.fetch(AND(seen=True)):
-            mailbox.move(msg.uid,'INBOX|CRM') 
+            mailbox.move(msg.uid,'Novers СПБ') 
             attachments = []
             for a in msg.attachments:
                 print(a.filename)
