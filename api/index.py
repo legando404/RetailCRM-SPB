@@ -128,12 +128,14 @@ from fastapi.responses import JSONResponse
 import traceback
 
 @app.get('/api')
-async def api():
+async def api_handler():
     try:
+        print("➡️ Вход в /api")
         output = await task()
         return output
     except Exception as e:
-        print("❌ Exception in /api route:")
-        traceback.print_exc()  # Вывод стека ошибки
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 
