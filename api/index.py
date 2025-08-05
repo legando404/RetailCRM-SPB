@@ -23,7 +23,7 @@ load_dotenv()
 app = FastAPI()
 #url = 'https://mdevelopeur.retailcrm.ru/api/v5/'
 url = os.getenv("URL")#'https://laminat77.retailcrm.ru'
-site = os.getenv('site')#= 'novers'
+site = os.getenv('site')#= 'novers-spb'
 apikey = os.getenv('key') #'vikuHSdIKilFPMr0oyj5LpemwHvEPjVw'
 #apikey = 'bma1wovaLnCuJrayUpzUecTIcpdHnw7X'
 #apikey = 'nHY0H7zd7UWwcEiwN0EbwhXz2eGY9o9G'
