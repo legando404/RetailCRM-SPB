@@ -142,11 +142,10 @@ async def get_mail(username, password, imap_server, folder='Novers СПБ', limi
             array.append(data)
 
             # Отметить как прочитанное
-           mailbox.flag(msg.uid, flags=[r'\Seen'], action='add')
+            mailbox.flag(msg.uid, flags=[r'\Seen'], action='add')
 
+    return array
 
-
-        return array
 
 
 
