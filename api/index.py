@@ -1,3 +1,4 @@
+полный файл ниже, почему-то не создаются заказы в retailcrm как в рабочем примере из начала нашей переписки
 from fastapi import FastAPI, Request, Body
 from pydantic import BaseModel
 from time import time
@@ -89,31 +90,44 @@ async def post_order(client, first_name, last_name, email, subject, text, html, 
     print('result: ', result.get_response())
     return result 
 
-async def get_mail(username, password, imap_server, folder='Novers СПБ'):
+async def get_mail(username, password, imap_server, folder='Novers СПБ', limit=10):
     array = []
     print('connecting to imap server...')
 
     with MailBox(imap_server).login(username, password, initial_folder=folder) as mailbox:
         print('fetching unread...')
-        for msg in mailbox.fetch(AND(seen=True)):
-            mailbox.move(msg.uid,'Novers СПБ') 
-            attachments = []
-            for a in msg.attachments:
-                print(a.filename)
-                #print(a.payload)
-                attachments.append(a)
-            print(len(attachments))
-            name = re.search('(.*) <' + msg.from_ + '>', msg.from_values.full).group(1).split(' ')
-            print(name)
-            lastName = name[-1]
-            name.pop(-1)
-            firstName = ' '.join(name)
-            print(firstName, lastName)
-            data = {"email": msg.from_, "first_name": firstName, "last_name": lastName, "subject": msg.subject, "text": msg.text, "html": msg.html, "attachments": attachments}
-            print(data["email"])
-            print(msg.date, msg.from_, msg.subject, msg.from_values,name, len(msg.text or msg.html))
+        for msg in mailbox.fetch(AND(seen=False), limit=limit):
+            attachments = [a for a in msg.attachments]
+            print(f"{len(attachments)} attachments in message from {msg.from_}")
+
+            # Распознаём имя
+            match = re.search(r'(.*) <' + re.escape(msg.from_) + '>', msg.from_values.full or '')
+            if match:
+                parts = match.group(1).split()
+                lastName = parts[-1]
+                firstName = ' '.join(parts[:-1])
+            else:
+                firstName = ''
+                lastName = msg.from_
+
+            data = {
+                "email": msg.from_,
+                "first_name": firstName,
+                "last_name": lastName,
+                "subject": msg.subject,
+                "text": msg.text,
+                "html": msg.html,
+                "attachments": attachments,
+            }
             array.append(data)
+
+            # Отметить как прочитанное
+           mailbox.flag(msg.uid, flags=[r'\Seen'], action='add')
+
+
+
         return array
+
 
 
 async def task():
@@ -135,5 +149,3 @@ async def api_handler():
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
-
-
