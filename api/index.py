@@ -71,23 +71,44 @@ async def main(client):
 
 async def post_order(client, first_name, last_name, email, subject, text, html, attachments):
     print('posting...')
-    try: 
-       filter = {'email': email}
-       customers = client.customers(filter).get_response()["customers"]        
+    try:
+        filter = {'email': email}
+        customers = client.customers(filter).get_response().get("customers", [])
     except Exception as e:
-        print('exception: ', e)
-        return e
-    try: 
+        print('Exception in customer fetch:', e)
+        traceback.print_exc()
+        return None
+
+    try:
         print('posting.... ', customers)
-        order = {'customerComment': text, 'status': 'novoe-pismo', 'orderMethod': 'e-mail', 'customFields': { 'tema_pisma1': subject, 'tekst_pisma': text}, 'lastName': last_name, 'firstName': first_name, 'email': email}
-        if len(customers) > 0:
-            order["customer"] = { 'id': customers[0]["id"]}
-            print('customer: ', customers[0]["email"])
+        order = {
+            'customerComment': text,
+            'status': 'novoe-pismo',
+            'orderMethod': 'e-mail',
+            'lastName': last_name,
+            'firstName': first_name,
+            'email': email,
+            'customFields': {
+                'tema_pisma1': subject,
+                'tekst_pisma': text
+            }
+        }
+
+        if customers:
+            order["customer"] = {'id': customers[0]["id"]}
+
+        print("[DEBUG] Creating order with:", json.dumps(order, indent=2, ensure_ascii=False))
+        print(f"[DEBUG] site: {site}")
+
         result = client.order_create(order, site)
+        print('result:', result.get_response())
+        return result
+
     except Exception as e:
-        print('exception: ', e)
-    print('result: ', result.get_response())
-    return result 
+        print('Exception in order_create:', e)
+        traceback.print_exc()
+        return None
+
 
 async def get_mail(username, password, imap_server, folder='Novers СПБ', limit=10):
     array = []
