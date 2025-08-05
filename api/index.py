@@ -124,13 +124,16 @@ async def task():
         result = await asyncio.gather(*tasks)
         return result
 
-@app.route('/api', methods=['GET', 'POST'])
-def your_api_func():
+from fastapi.responses import JSONResponse
+import traceback
+
+@app.get('/api')
+async def api():
     try:
-        # основной код
-        ...
-        return jsonify({"status": "ok"})  # пример
+        output = await task()
+        return output
     except Exception as e:
-        print("Exception occurred:", e)
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        print("❌ Exception in /api route:")
+        traceback.print_exc()  # Вывод стека ошибки
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
