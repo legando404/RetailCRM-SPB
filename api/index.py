@@ -1,98 +1,74 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Body
+from pydantic import BaseModel
 from time import time
 import httpx
 import asyncio
 import json
-from imap_tools import MailBox
+import imaplib
+import email
+from imap_tools import MailBox, AND
 from email.header import decode_header
+import base64
 import re
 import os
 import retailcrm
-import traceback
-from fastapi.responses import JSONResponse
+import yadisk
+import aiofiles
+import http.client 
 from dotenv import load_dotenv
-import tempfile
 
 load_dotenv()
+#res = #conn.getresponse() data = res.read() print()
 
 app = FastAPI()
-
-# Конфигурация из .env
-url = os.getenv("URL")
-site = os.getenv('site')
-apikey = os.getenv('key')
+#url = 'https://mdevelopeur.retailcrm.ru/api/v5/'
+url = os.getenv("URL")#'https://laminat77.retailcrm.ru'
+site = os.getenv('site')#= 'novers-spb'
+apikey = os.getenv('key') #'vikuHSdIKilFPMr0oyj5LpemwHvEPjVw'
+#apikey = 'nHY0H7zd7UWwcEiwN0EbwhXz2eGY9o9G'
 retail_client = retailcrm.v5(url, apikey)
-headers = {'X-API-KEY': apikey, 'Content-Type': 'image/jpeg'}
+#headers = {'X-API-KEY' : apikey}
+conn = http.client.HTTPSConnection('laminat77.retailcrm.ru')
+headers = { 'X-API-KEY': apikey, 'Content-Type': 'image/jpeg' }  
+#password = "zrAUqnFWgD14Ygkq13VK"
+#username = "kworktestbox@mail.ru"
+password = os.getenv('password')  #"r4ZuvyWydYMktHuTn3uJ"
+username = os.getenv('user')#"novers495@mail.ru"
+imap_server = os.getenv('imap')#"imap.mail.ru"
 
-password = os.getenv('password')
-username = os.getenv('user')
-imap_server = os.getenv('imap')
-
-UID_FILE = 'last_uid.txt'
-
-# --- UID-хранилище ---
-def load_last_uid(path=UID_FILE):
+async def upload_file(client, file, order):
+    print(file.filename, file.content_disposition)
     try:
-        with open(path, 'r') as f:
-            return int(f.read())
-    except:
-        return 0
+        response = await client.post(url + "/api/v5/files/upload", data = file.payload, headers = headers)
+        id = response.json()["file"]["id"]
+        filename = ''.join(re.findall(r"\w+| |\.", file.filename))
+        data = { 'id': id, 'filename': file.filename, 'attachment': [{'order':{'id': order}}]}
+        response = retail_client.files_edit(data)
+        print(response.get_response())
+    except Exception as e:
+                print('exception: ', e)
 
-def save_last_uid(uid, path=UID_FILE):
-    with tempfile.NamedTemporaryFile('w', delete=False, dir=os.path.dirname(path) or '.') as tf:
-        tf.write(str(uid))
-        temp_name = tf.name
-    os.replace(temp_name, path)
+async def main(client):
+    messages = await get_mail(username, password, imap_server)
+    for msg in messages : 
+        for a in msg["attachments"]:
+            print(a.filename)
+        #for a in msg["attachments"]: 
+            #files = {'file': a.payload}
+            #try:                       
+                #conn.request("POST", "/api/v5/files/upload", a.payload, headers)
+                #file = conn.getresponse().read().decode("utf-8")
+                #file = await client.post(url + '/api/v5/files/upload', payload=a.payload, headers=headers)
+            #except Exception as e:
+                #print('exception: ', e)
+            #print(file.content, file.json()["file"]["id"])
+        response = await post_order(retail_client, msg["first_name"], msg["last_name"], msg["email"], msg["subject"], msg["text"], msg["html"], msg["attachments"])
+        order = response.get_response()["id"]
+        for a in msg["attachments"]: 
+            if a.content_disposition == 'attachment':
+                await upload_file(client, a, order)
+        return response    
 
-
-# --- Получение писем ---
-async def get_mail(username, password, imap_server, folder='Novers СПБ', limit=10):
-    array = []
-    print('connecting to imap server...')
-
-    last_uid = load_last_uid()
-
-    with MailBox(imap_server).login(username, password, initial_folder=folder) as mailbox:
-        print(f'Fetching emails with UID > {last_uid}')
-
-        # Получаем все UIDs и фильтруем вручную
-        uids = [int(uid) for uid in mailbox.uids() if int(uid) > last_uid]
-        if not uids:
-            print("Нет новых писем по UID")
-            return []
-
-        messages = list(mailbox.fetch_by_uid([str(uid) for uid in sorted(uids)[:limit]]))
-
-        for msg in messages:
-            attachments = [a for a in msg.attachments]
-            print(f"{len(attachments)} attachments in message from {msg.from_}")
-
-            match = re.search(r'(.*) <' + re.escape(msg.from_) + '>', msg.from_values.full or '')
-            if match:
-                parts = match.group(1).split()
-                lastName = parts[-1]
-                firstName = ' '.join(parts[:-1])
-            else:
-                firstName = ''
-                lastName = msg.from_
-
-            data = {
-                "email": msg.from_,
-                "first_name": firstName,
-                "last_name": lastName,
-                "subject": msg.subject,
-                "text": msg.text,
-                "html": msg.html,
-                "attachments": attachments,
-            }
-            array.append(data)
-
-            save_last_uid(msg.uid)
-
-    return array
-
-
-# --- Создание заказа ---
 async def post_order(client, first_name, last_name, email, subject, text, html, attachments):
     print('posting...')
     try:
@@ -134,58 +110,55 @@ async def post_order(client, first_name, last_name, email, subject, text, html, 
         return None
 
 
-# --- Загрузка вложений ---
-async def upload_file(client, file, order):
-    print(file.filename, file.content_disposition)
-    try:
-        response = await client.post(url + "/api/v5/files/upload", data=file.payload, headers=headers)
-        id = response.json()["file"]["id"]
-        filename = ''.join(re.findall(r"\w+| |\.", file.filename))
-        data = {
-            'id': id,
-            'filename': file.filename,
-            'attachment': [{'order': {'id': order}}]
-        }
-        response = retail_client.files_edit(data)
-        print(response.get_response())
-    except Exception as e:
-        print('exception: ', e)
+async def get_mail(username, password, imap_server, folder='Novers СПБ', limit=10):
+    array = []
+    print('connecting to imap server...')
+
+    with MailBox(imap_server).login(username, password, initial_folder=folder) as mailbox:
+        print('fetching unread...')
+        for msg in mailbox.fetch(AND(seen=False), limit=limit):
+            attachments = [a for a in msg.attachments]
+            print(f"{len(attachments)} attachments in message from {msg.from_}")
+
+            # Распознаём имя
+            match = re.search(r'(.*) <' + re.escape(msg.from_) + '>', msg.from_values.full or '')
+            if match:
+                parts = match.group(1).split()
+                lastName = parts[-1]
+                firstName = ' '.join(parts[:-1])
+            else:
+                firstName = ''
+                lastName = msg.from_
+
+            data = {
+                "email": msg.from_,
+                "first_name": firstName,
+                "last_name": lastName,
+                "subject": msg.subject,
+                "text": msg.text,
+                "html": msg.html,
+                "attachments": attachments,
+            }
+            array.append(data)
+
+            # Отметить как прочитанное
+            mailbox.flag(msg.uid, ['\\Seen'], 'add')
+
+    return array
 
 
-# --- Обработка одного письма ---
-async def main(client):
-    messages = await get_mail(username, password, imap_server)
-    for msg in messages:
-        for a in msg["attachments"]:
-            print(a.filename)
-        response = await post_order(
-            retail_client,
-            msg["first_name"],
-            msg["last_name"],
-            msg["email"],
-            msg["subject"],
-            msg["text"],
-            msg["html"],
-            msg["attachments"]
-        )
-        if not response:
-            continue
-        order = response.get_response()["id"]
-        for a in msg["attachments"]:
-            if a.content_disposition == 'attachment':
-                await upload_file(client, a, order)
-    return {"status": "done"}
 
 
-# --- Запуск задачи ---
+
 async def task():
     async with httpx.AsyncClient() as client:
-        tasks = [main(client)]
+        tasks = [main(client) for i in range(1)]
         result = await asyncio.gather(*tasks)
         return result
 
+from fastapi.responses import JSONResponse
+import traceback
 
-# --- HTTP-эндпоинт ---
 @app.get('/api')
 async def api_handler():
     try:
@@ -193,5 +166,6 @@ async def api_handler():
         output = await task()
         return output
     except Exception as e:
+        import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
