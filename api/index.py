@@ -25,7 +25,6 @@ app = FastAPI()
 url = os.getenv("URL")#'https://laminat77.retailcrm.ru'
 site = os.getenv('site')#= 'novers-spb'
 apikey = os.getenv('key') #'vikuHSdIKilFPMr0oyj5LpemwHvEPjVw'
-#apikey = 'bma1wovaLnCuJrayUpzUecTIcpdHnw7X'
 #apikey = 'nHY0H7zd7UWwcEiwN0EbwhXz2eGY9o9G'
 retail_client = retailcrm.v5(url, apikey)
 #headers = {'X-API-KEY' : apikey}
@@ -90,16 +89,7 @@ async def post_order(client, first_name, last_name, email, subject, text, html, 
     print('result: ', result.get_response())
     return result 
 
-async def get_mail(username, password, imap_server):
-    array = []
-    print('connecting to imap server...')
-    with MailBox(imap_server).login(username, password, initial_folder='Novers СПБ') as mailbox:
-        print('fetching...')
-        exists = mailbox.folder.exists('Novers СПБ')
-        if not exists:
-            mailbox.folder.create('Novers СПБ')
-       
-        for msg in mailbox.fetch(AND(seen=True)):
+for msg in mailbox.fetch(AND(seen=True)):
             mailbox.move(msg.uid,'Novers СПБ') 
             attachments = []
             for a in msg.attachments:
