@@ -1,4 +1,3 @@
-полный файл ниже, почему-то не создаются заказы в retailcrm как в рабочем примере из начала нашей переписки
 from fastapi import FastAPI, Request, Body
 from pydantic import BaseModel
 from time import time
