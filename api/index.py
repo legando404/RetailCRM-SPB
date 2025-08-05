@@ -92,31 +92,45 @@ async def post_order(client, first_name, last_name, email, subject, text, html, 
 async def get_mail(username, password, imap_server):
     array = []
     print('connecting to imap server...')
+
     with MailBox(imap_server).login(username, password, initial_folder='Novers СПБ') as mailbox:
         print('fetching...')
-        exists = mailbox.folder.exists('Novers СПБ')
-        if not exists:
-            mailbox.folder.create('Novers СПБ')
-       
+
         for msg in mailbox.fetch(AND(seen=True)):
-            mailbox.move(msg.uid,'Novers СПБ') 
             attachments = []
             for a in msg.attachments:
                 print(a.filename)
-                #print(a.payload)
                 attachments.append(a)
+
             print(len(attachments))
-            name = re.search('(.*) <' + msg.from_ + '>', msg.from_values.full).group(1).split(' ')
-            print(name)
-            lastName = name[-1]
-            name.pop(-1)
-            firstName = ' '.join(name)
+            name_match = re.search(r'(.*) <' + re.escape(msg.from_) + '>', msg.from_values.full)
+            if name_match:
+                name = name_match.group(1).split(' ')
+                lastName = name[-1]
+                name.pop(-1)
+                firstName = ' '.join(name)
+            else:
+                firstName = ''
+                lastName = msg.from_
+
             print(firstName, lastName)
-            data = {"email": msg.from_, "first_name": firstName, "last_name": lastName, "subject": msg.subject, "text": msg.text, "html": msg.html, "attachments": attachments}
+
+            data = {
+                "email": msg.from_,
+                "first_name": firstName,
+                "last_name": lastName,
+                "subject": msg.subject,
+                "text": msg.text,
+                "html": msg.html,
+                "attachments": attachments
+            }
+
             print(data["email"])
-            print(msg.date, msg.from_, msg.subject, msg.from_values,name, len(msg.text or msg.html))
+            print(msg.date, msg.from_, msg.subject, msg.from_values, len(msg.text or msg.html))
             array.append(data)
+
         return array
+
 
 async def task():
     async with httpx.AsyncClient() as client:
