@@ -96,7 +96,7 @@ async def get_mail(username, password, imap_server, folder='Novers СПБ'):
     with MailBox(imap_server).login(username, password, initial_folder=folder) as mailbox:
         print('fetching unread...')
         for msg in mailbox.fetch(AND(seen=True)):
-            mailbox.move(msg.uid,'INBOX|CRM') 
+            mailbox.move(msg.uid,'Novers СПБ') 
             attachments = []
             for a in msg.attachments:
                 print(a.filename)
