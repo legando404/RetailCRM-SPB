@@ -41,7 +41,7 @@ async def upload_file(client, file, order):
     try:
         response = await client.post(url + "/api/v5/files/upload", data = file.payload, headers = headers)
         id = response.json()["file"]["id"]
-        filename = ''.join(re.findall(r"\w+| |\.", file.filename))
+        filename = ''.join(re.findall("\w+| |\.", file.filename))
         data = { 'id': id, 'filename': file.filename, 'attachment': [{'order':{'id': order}}]}
         response = retail_client.files_edit(data)
         print(response.get_response())
@@ -71,84 +71,52 @@ async def main(client):
 
 async def post_order(client, first_name, last_name, email, subject, text, html, attachments):
     print('posting...')
-    try:
-        filter = {'email': email}
-        customers = client.customers(filter).get_response().get("customers", [])
+    try: 
+       filter = {'email': email}
+       customers = client.customers(filter).get_response()["customers"]        
     except Exception as e:
-        print('Exception in customer fetch:', e)
-        traceback.print_exc()
-        return None
-
-    try:
+        print('exception: ', e)
+        return e
+    try: 
         print('posting.... ', customers)
-        order = {
-            'customerComment': text,
-            'status': 'novoe-pismo',
-            'orderMethod': 'e-mail',
-            'lastName': last_name,
-            'firstName': first_name,
-            'email': email,
-            'customFields': {
-                'tema_pisma1': subject,
-                'tekst_pisma': text
-            }
-        }
-
-        if customers:
-            order["customer"] = {'id': customers[0]["id"]}
-
-        print("[DEBUG] Creating order with:", json.dumps(order, indent=2, ensure_ascii=False))
-        print(f"[DEBUG] site: {site}")
-
+        order = {'customerComment': text, 'status': 'novoe-pismo', 'orderMethod': 'e-mail', 'customFields': { 'tema_pisma1': subject, 'tekst_pisma': text}, 'lastName': last_name, 'firstName': first_name, 'email': email}
+        if len(customers) > 0:
+            order["customer"] = { 'id': customers[0]["id"]}
+            print('customer: ', customers[0]["email"])
         result = client.order_create(order, site)
-        print('result:', result.get_response())
-        return result
-
     except Exception as e:
-        print('Exception in order_create:', e)
-        traceback.print_exc()
-        return None
+        print('exception: ', e)
+    print('result: ', result.get_response())
+    return result 
 
-
-async def get_mail(username, password, imap_server, folder='Novers СПБ', limit=10):
+async def get_mail(username, password, imap_server):
     array = []
     print('connecting to imap server...')
-
-    with MailBox(imap_server).login(username, password, initial_folder=folder) as mailbox:
-        print('fetching unread...')
-        for msg in mailbox.fetch(AND(seen=False), limit=limit):
-            attachments = [a for a in msg.attachments]
-            print(f"{len(attachments)} attachments in message from {msg.from_}")
-
-            # Распознаём имя
-            match = re.search(r'(.*) <' + re.escape(msg.from_) + '>', msg.from_values.full or '')
-            if match:
-                parts = match.group(1).split()
-                lastName = parts[-1]
-                firstName = ' '.join(parts[:-1])
-            else:
-                firstName = ''
-                lastName = msg.from_
-
-            data = {
-                "email": msg.from_,
-                "first_name": firstName,
-                "last_name": lastName,
-                "subject": msg.subject,
-                "text": msg.text,
-                "html": msg.html,
-                "attachments": attachments,
-            }
+    with MailBox(imap_server).login(username, password, initial_folder='Novers СПБ') as mailbox:
+        print('fetching...')
+        exists = mailbox.folder.exists('INBOX|СПБ')
+        if not exists:
+            mailbox.folder.create('INBOX|СПБ')
+       
+        for msg in mailbox.fetch(AND(seen=True)):
+            mailbox.move(msg.uid,'INBOX|СПБ') 
+            attachments = []
+            for a in msg.attachments:
+                print(a.filename)
+                #print(a.payload)
+                attachments.append(a)
+            print(len(attachments))
+            name = re.search('(.*) <' + msg.from_ + '>', msg.from_values.full).group(1).split(' ')
+            print(name)
+            lastName = name[-1]
+            name.pop(-1)
+            firstName = ' '.join(name)
+            print(firstName, lastName)
+            data = {"email": msg.from_, "first_name": firstName, "last_name": lastName, "subject": msg.subject, "text": msg.text, "html": msg.html, "attachments": attachments}
+            print(data["email"])
+            print(msg.date, msg.from_, msg.subject, msg.from_values,name, len(msg.text or msg.html))
             array.append(data)
-
-            # Отметить как прочитанное
-            mailbox.flag(msg.uid, ['\\Seen'], 'add')
-
-    return array
-
-
-
-
+        return array
 
 async def task():
     async with httpx.AsyncClient() as client:
@@ -156,16 +124,9 @@ async def task():
         result = await asyncio.gather(*tasks)
         return result
 
-from fastapi.responses import JSONResponse
-import traceback
-
 @app.get('/api')
-async def api_handler():
-    try:
-        print("➡️ Вход в /api")
-        output = await task()
-        return output
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": str(e)})
+async def api():
+    #start = time()
+    output = await task()
+    #print("time: ", time() - start)
+    return output
