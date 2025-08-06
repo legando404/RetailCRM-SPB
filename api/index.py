@@ -94,12 +94,12 @@ async def get_mail(username, password, imap_server):
     print('connecting to imap server...')
     with MailBox(imap_server).login(username, password, initial_folder='Novers СПБ') as mailbox:
         print('fetching...')
-        exists = mailbox.folder.exists('INBOX|СПБ')
+        exists = mailbox.folder.exists('Novers СПБ/INBOX|СПБ')
         if not exists:
-            mailbox.folder.create('INBOX|СПБ')
+            mailbox.folder.create('Novers СПБ/INBOX|СПБ')
        
         for msg in mailbox.fetch(AND(seen=True)):
-            mailbox.move(msg.uid,'INBOX|СПБ') 
+            mailbox.move(msg.uid,'Novers СПБ/INBOX|СПБ') 
             attachments = []
             for a in msg.attachments:
                 print(a.filename)
